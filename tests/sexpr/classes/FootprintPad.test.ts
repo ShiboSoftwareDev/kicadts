@@ -55,7 +55,7 @@ test("FootprintPad", () => {
   expect(fpPad.locked).toBe(true)
 
   expect(fpPad.getString()).toMatchInlineSnapshot(`
-    "(pad \"1\" smd roundrect
+    "(pad \"1\" smd roundrect locked
       (at 1.5 -2.5 180)
       (size 1.2 0.6)
       (drill 0.3)
@@ -72,7 +72,6 @@ test("FootprintPad", () => {
       (thermal_width 0.12)
       (thermal_gap 0.2)
       (uuid 55555555-6666-7777-8888-999999999999)
-      locked
     )"
   `)
 })

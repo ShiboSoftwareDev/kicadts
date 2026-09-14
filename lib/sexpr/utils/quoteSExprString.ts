@@ -6,6 +6,17 @@ export const needsQuoting = (value: string): boolean => {
   // Empty strings need quotes
   if (value.length === 0) return true
 
+  // Numeric and reserved tokens are parsed as non-string primitives unless
+  // they remain quoted.
+  if (
+    /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u.test(value) ||
+    value === "#t" ||
+    value === "#f" ||
+    value === "nil"
+  ) {
+    return true
+  }
+
   // Check for special characters that require quoting
   return /[\s()"\\]/.test(value)
 }

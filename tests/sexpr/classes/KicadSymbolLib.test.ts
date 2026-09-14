@@ -66,7 +66,7 @@ test("KicadSymbolLib parses generator_version", () => {
   expect(parsed).toBeInstanceOf(KicadSymbolLib)
   const lib = parsed as KicadSymbolLib
   expect(lib.generatorVersion).toBe("8.0")
-  expect(lib.getString()).toContain("(generator_version 8.0)")
+  expect(lib.getString()).toContain('(generator_version "8.0")')
 })
 
 test("KicadSymbolLib preserves inline hidden pin names", () => {

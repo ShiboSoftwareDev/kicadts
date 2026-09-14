@@ -3,6 +3,7 @@
   "main": "dist/index.js",
   "version": "0.0.58",
   "type": "module",
+  "trustedDependencies": ["sharp"],
   "repository": {
     "type": "git",
     "url": "https://github.com/tscircuit/kicadts"
@@ -22,6 +23,7 @@
     "@biomejs/biome": "^2.2.4",
     "@types/bun": "latest",
     "looks-same": "^10.0.1",
+    "sharp": "^0.35.3",
     "tsup": "^8.5.0"
   },
   "peerDependencies": {
