@@ -791,13 +791,10 @@ export class FootprintPad extends SxClass {
 
   override getString(): string {
     const lines = [
-      `(pad ${quoteSExprString(this._number)} ${this._padType} ${this._shape}`,
+      `(pad ${quoteSExprString(this._number)} ${this._padType} ${this._shape}${this._locked ? " locked" : ""}`,
     ]
     for (const child of this.getChildren()) {
       lines.push(child.getStringIndented())
-    }
-    if (this._locked) {
-      lines.push("  locked")
     }
     lines.push(")")
     return lines.join("\n")
