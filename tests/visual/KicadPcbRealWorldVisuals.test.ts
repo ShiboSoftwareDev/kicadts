@@ -19,62 +19,134 @@ const REAL_WORLD_BOARDS = [
   "joule-thief.kicad_pcb",
 ]
 
-async function renderRoundTripBoard(filename: string): Promise<Buffer> {
+async function renderPcbView({
+  bottom,
+  filename,
+  pcbPath,
+  tempDirectory,
+}: {
+  bottom: boolean
+  filename: string
+  pcbPath: string
+  tempDirectory: string
+}): Promise<Buffer> {
+  const side = bottom ? "bottom" : "top"
+  const svgPath = join(
+    tempDirectory,
+    `${basename(filename, ".kicad_pcb")}-${side}.svg`,
+  )
+  const layers = bottom ? "B.Cu,B.SilkS,Edge.Cuts" : "F.Cu,F.SilkS,Edge.Cuts"
+  const process = Bun.spawn(
+    [
+      KICAD_CLI,
+      "pcb",
+      "export",
+      "svg",
+      pcbPath,
+      "-o",
+      svgPath,
+      "--layers",
+      layers,
+      ...(bottom ? ["--mirror"] : []),
+      "--mode-single",
+      "--page-size-mode",
+      "2",
+      "--exclude-drawing-sheet",
+    ],
+    { stderr: "pipe", stdout: "pipe" },
+  )
+  const exitCode = await process.exited
+  if (exitCode !== 0) {
+    throw new Error(
+      `kicad-cli failed for ${filename} ${side}: ${await new Response(process.stderr).text()}`,
+    )
+  }
+
+  return await sharp(await readFile(svgPath), { density: 120 })
+    .resize({
+      background: "white",
+      fit: "contain",
+      height: 450,
+      width: 600,
+    })
+    .flatten({ background: "white" })
+    .png()
+    .toBuffer()
+}
+
+async function stackViews(views: Buffer[]): Promise<Buffer> {
+  return await sharp({
+    create: {
+      width: 1200,
+      height: 900,
+      channels: 3,
+      background: "white",
+    },
+  })
+    .composite(
+      views.map((input, index) => ({
+        input,
+        left: (index % 2) * 600,
+        top: Math.floor(index / 2) * 450,
+      })),
+    )
+    .png()
+    .toBuffer()
+}
+
+async function renderSourceAndRoundTripBoard(
+  filename: string,
+): Promise<Buffer> {
   const sourcePath = resolve(import.meta.dir, "..", "assets", filename)
   const source = await readFile(sourcePath, "utf8")
   const roundTrip = parseKicadPcb(source).getString()
   const tempDirectory = await mkdtemp(join(tmpdir(), "kicadts-visual-"))
-  const pcbPath = join(tempDirectory, filename)
-  const svgPath = join(tempDirectory, `${basename(filename, ".kicad_pcb")}.svg`)
+  const sourcePcbPath = join(tempDirectory, `source-${filename}`)
+  const roundTripPcbPath = join(tempDirectory, `roundtrip-${filename}`)
 
   try {
-    await writeFile(pcbPath, roundTrip)
-    const process = Bun.spawn(
-      [
-        KICAD_CLI,
-        "pcb",
-        "export",
-        "svg",
-        pcbPath,
-        "-o",
-        svgPath,
-        "--layers",
-        "F.Cu,F.SilkS,Edge.Cuts",
-        "--black-and-white",
-        "--mode-single",
-        "--page-size-mode",
-        "2",
-        "--exclude-drawing-sheet",
-      ],
-      { stderr: "pipe", stdout: "pipe" },
+    await Promise.all([
+      writeFile(sourcePcbPath, source),
+      writeFile(roundTripPcbPath, roundTrip),
+    ])
+    return await stackViews(
+      await Promise.all([
+        renderPcbView({
+          bottom: false,
+          filename: `source-${filename}`,
+          pcbPath: sourcePcbPath,
+          tempDirectory,
+        }),
+        renderPcbView({
+          bottom: false,
+          filename: `roundtrip-${filename}`,
+          pcbPath: roundTripPcbPath,
+          tempDirectory,
+        }),
+        renderPcbView({
+          bottom: true,
+          filename: `source-${filename}`,
+          pcbPath: sourcePcbPath,
+          tempDirectory,
+        }),
+        renderPcbView({
+          bottom: true,
+          filename: `roundtrip-${filename}`,
+          pcbPath: roundTripPcbPath,
+          tempDirectory,
+        }),
+      ]),
     )
-    const exitCode = await process.exited
-    if (exitCode !== 0) {
-      throw new Error(
-        `kicad-cli failed for ${filename}: ${await new Response(process.stderr).text()}`,
-      )
-    }
-
-    return await sharp(await readFile(svgPath), { density: 120 })
-      .resize({
-        background: "white",
-        fit: "contain",
-        height: 600,
-        width: 800,
-      })
-      .flatten({ background: "white" })
-      .png()
-      .toBuffer()
   } finally {
     await rm(tempDirectory, { force: true, recursive: true })
   }
 }
 
 for (const filename of REAL_WORLD_BOARDS) {
-  test(`visually round-trips ${filename}`, async () => {
-    await expect(renderRoundTripBoard(filename)).toMatchPngSnapshot(
+  test(`visually preserves both sides of ${filename}`, async () => {
+    await expect(renderSourceAndRoundTripBoard(filename)).toMatchPngSnapshot(
       import.meta.path,
       basename(filename, ".kicad_pcb"),
     )
-  }, 20_000)
+  }, 60_000)
 }
